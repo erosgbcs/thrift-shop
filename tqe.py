@@ -1,121 +1,71 @@
-import csv
-import os
 from datetime import datetime
-from pathlib import Path
+from typing import List, Dict, Optional, Any
 
 class ThriftShopSystem:
-    def __init__(self, data_folder="thrift_shop_data"):
-        """Initialize the thrift shop system with CSV database files."""
-        self.data_folder = data_folder
-        Path(data_folder).mkdir(exist_ok=True)
+    def __init__(self):
+        """Initialize the thrift shop system with in-memory data structures."""
+        # In-memory databases
+        self.categories = []
+        self.clothing_items = []
+        self.sales_transactions = []
+        self.transaction_details = []
         
-        # Define CSV file paths
-        self.categories_file = os.path.join(data_folder, "categories.csv")
-        self.clothing_items_file = os.path.join(data_folder, "clothing_items.csv")
-        self.sales_transactions_file = os.path.join(data_folder, "sales_transactions.csv")
-        self.transaction_details_file = os.path.join(data_folder, "transaction_details.csv")
+        # Auto-increment counters
+        self.next_category_id = 1
+        self.next_item_id = 1
+        self.next_transaction_id = 1
         
-        # Initialize CSV files with headers if they don't exist
-        self._initialize_csv_files()
+        # Initialize with default categories
+        self._initialize_default_categories()
     
-    def _initialize_csv_files(self):
-        """Create CSV files with appropriate headers if they don't exist."""
-        # Categories table
-        if not os.path.exists(self.categories_file):
-            with open(self.categories_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['CategoryID', 'CategoryName'])
-                # Add some default categories
-                default_categories = [
-                    [1, 'Shirts'],
-                    [2, 'Pants'],
-                    [3, 'Dresses'],
-                    [4, 'Jackets'],
-                    [5, 'Shoes'],
-                    [6, 'Accessories']
-                ]
-                writer.writerows(default_categories)
-        
-        # Clothing Items table
-        if not os.path.exists(self.clothing_items_file):
-            with open(self.clothing_items_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['ItemID', 'ItemName', 'Size', 'Condition', 'Price', 'Status', 'CategoryID'])
-        
-        # Sales Transactions table
-        if not os.path.exists(self.sales_transactions_file):
-            with open(self.sales_transactions_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['TransactionID', 'TransactionDate', 'TotalAmount'])
-        
-        # Transaction Details table (junction table)
-        if not os.path.exists(self.transaction_details_file):
-            with open(self.transaction_details_file, 'w', newline='', encoding='utf-8') as f:
-                writer = csv.writer(f)
-                writer.writerow(['TransactionID', 'ItemID', 'SellingPrice'])
-    
-    def _get_next_id(self, file_path, id_column=0):
-        """Get the next available ID for a table."""
-        if not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
-            return 1
-        
-        with open(file_path, 'r', encoding='utf-8') as f:
-            reader = csv.reader(f)
-            next(reader)  # Skip header
-            ids = [int(row[id_column]) for row in reader if row]
-            return max(ids) + 1 if ids else 1
+    def _initialize_default_categories(self):
+        """Add default categories to the system."""
+        default_categories = [
+            'Shirts', 'Pants', 'Dresses', 'Jackets', 'Shoes', 'Accessories'
+        ]
+        for category_name in default_categories:
+            self.categories.append({
+                'CategoryID': self.next_category_id,
+                'CategoryName': category_name
+            })
+            self.next_category_id += 1
     
     # ============= CATEGORY MANAGEMENT =============
     
     def add_category(self, category_name):
         """Add a new category."""
-        categories = self.get_all_categories()
-        
         # Check if category already exists
-        for cat in categories:
+        for cat in self.categories:
             if cat['CategoryName'].lower() == category_name.lower():
                 print(f"Category '{category_name}' already exists!")
                 return False
         
-        new_id = self._get_next_id(self.categories_file)
+        new_category = {
+            'CategoryID': self.next_category_id,
+            'CategoryName': category_name
+        }
+        self.categories.append(new_category)
+        self.next_category_id += 1
         
-        with open(self.categories_file, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([new_id, category_name])
-        
-        print(f"Category '{category_name}' added successfully with ID {new_id}.")
+        print(f"Category '{category_name}' added successfully with ID {new_category['CategoryID']}.")
         return True
     
     def get_all_categories(self):
         """Retrieve all categories."""
-        categories = []
-        try:
-            with open(self.categories_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    categories.append({
-                        'CategoryID': int(row['CategoryID']),
-                        'CategoryName': row['CategoryName']
-                    })
-        except Exception as e:
-            print(f"Error reading categories: {e}")
-        
-        return categories
+        return self.categories.copy()
     
     def get_category_by_id(self, category_id):
         """Get a category by its ID."""
-        categories = self.get_all_categories()
-        for category in categories:
+        for category in self.categories:
             if category['CategoryID'] == category_id:
-                return category
+                return category.copy()
         return None
     
     def get_category_by_name(self, category_name):
         """Get a category by its name."""
-        categories = self.get_all_categories()
-        for category in categories:
+        for category in self.categories:
             if category['CategoryName'].lower() == category_name.lower():
-                return category
+                return category.copy()
         return None
     
     # ============= CLOTHING ITEM MANAGEMENT =============
@@ -128,71 +78,54 @@ class ThriftShopSystem:
             print(f"Category ID {category_id} does not exist!")
             return False
         
-        new_id = self._get_next_id(self.clothing_items_file)
+        new_item = {
+            'ItemID': self.next_item_id,
+            'ItemName': item_name,
+            'Size': size,
+            'Condition': condition,
+            'Price': float(price),
+            'Status': 'Available',
+            'CategoryID': category_id
+        }
+        self.clothing_items.append(new_item)
+        self.next_item_id += 1
         
-        with open(self.clothing_items_file, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([new_id, item_name, size, condition, price, 'Available', category_id])
-        
-        print(f"Clothing item '{item_name}' added successfully with ID {new_id}.")
+        print(f"Clothing item '{item_name}' added successfully with ID {new_item['ItemID']}.")
         return True
     
     def get_all_clothing_items(self):
         """Retrieve all clothing items."""
-        items = []
-        try:
-            with open(self.clothing_items_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    items.append({
-                        'ItemID': int(row['ItemID']),
-                        'ItemName': row['ItemName'],
-                        'Size': row['Size'],
-                        'Condition': row['Condition'],
-                        'Price': float(row['Price']),
-                        'Status': row['Status'],
-                        'CategoryID': int(row['CategoryID'])
-                    })
-        except Exception as e:
-            print(f"Error reading clothing items: {e}")
-        
-        return items
+        return [item.copy() for item in self.clothing_items]
     
     def get_clothing_item_by_id(self, item_id):
         """Get a clothing item by its ID."""
-        items = self.get_all_clothing_items()
-        for item in items:
+        for item in self.clothing_items:
             if item['ItemID'] == item_id:
-                return item
+                return item.copy()
         return None
     
     def search_clothing_items(self, search_term, search_by='ItemName'):
         """Search clothing items by various criteria."""
-        items = self.get_all_clothing_items()
         results = []
-        
         search_term = search_term.lower()
         
-        for item in items:
+        for item in self.clothing_items:
             if search_by == 'ItemName' and search_term in item['ItemName'].lower():
-                results.append(item)
+                results.append(item.copy())
             elif search_by == 'Size' and search_term in item['Size'].lower():
-                results.append(item)
+                results.append(item.copy())
             elif search_by == 'Condition' and search_term in item['Condition'].lower():
-                results.append(item)
+                results.append(item.copy())
             elif search_by == 'Status' and search_term in item['Status'].lower():
-                results.append(item)
+                results.append(item.copy())
             elif search_by == 'CategoryID' and str(item['CategoryID']) == search_term:
-                results.append(item)
+                results.append(item.copy())
         
         return results
     
     def update_clothing_item(self, item_id, **kwargs):
         """Update a clothing item's information."""
-        items = self.get_all_clothing_items()
-        updated = False
-        
-        for i, item in enumerate(items):
+        for i, item in enumerate(self.clothing_items):
             if item['ItemID'] == item_id:
                 # Update provided fields
                 for key, value in kwargs.items():
@@ -207,53 +140,33 @@ class ThriftShopSystem:
                             item[key] = int(value)
                         else:
                             item[key] = value
-                items[i] = item
-                updated = True
-                break
+                
+                print(f"Item ID {item_id} updated successfully.")
+                return True
         
-        if updated:
-            self._save_clothing_items(items)
-            print(f"Item ID {item_id} updated successfully.")
-            return True
-        else:
-            print(f"Item ID {item_id} not found.")
-            return False
+        print(f"Item ID {item_id} not found.")
+        return False
     
     def delete_clothing_item(self, item_id):
         """Delete a clothing item (only if not sold)."""
-        items = self.get_all_clothing_items()
-        
         # Check if item exists and is not sold
-        item = self.get_clothing_item_by_id(item_id)
-        if not item:
+        item_index = None
+        for i, item in enumerate(self.clothing_items):
+            if item['ItemID'] == item_id:
+                if item['Status'] == 'Sold':
+                    print(f"Cannot delete item ID {item_id} because it has been sold.")
+                    return False
+                item_index = i
+                break
+        
+        if item_index is None:
             print(f"Item ID {item_id} not found.")
             return False
         
-        if item['Status'] == 'Sold':
-            print(f"Cannot delete item ID {item_id} because it has been sold.")
-            return False
-        
         # Remove the item
-        items = [item for item in items if item['ItemID'] != item_id]
-        self._save_clothing_items(items)
-        print(f"Item ID {item_id} deleted successfully.")
+        deleted_item = self.clothing_items.pop(item_index)
+        print(f"Item '{deleted_item['ItemName']}' (ID: {item_id}) deleted successfully.")
         return True
-    
-    def _save_clothing_items(self, items):
-        """Save clothing items back to CSV."""
-        with open(self.clothing_items_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow(['ItemID', 'ItemName', 'Size', 'Condition', 'Price', 'Status', 'CategoryID'])
-            for item in items:
-                writer.writerow([
-                    item['ItemID'],
-                    item['ItemName'],
-                    item['Size'],
-                    item['Condition'],
-                    item['Price'],
-                    item['Status'],
-                    item['CategoryID']
-                ])
     
     # ============= SALES TRANSACTION MANAGEMENT =============
     
@@ -279,21 +192,27 @@ class ThriftShopSystem:
             total_amount += item['Price']
         
         # Create transaction
-        transaction_id = self._get_next_id(self.sales_transactions_file)
+        transaction_id = self.next_transaction_id
         transaction_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
         # Save transaction
-        with open(self.sales_transactions_file, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([transaction_id, transaction_date, total_amount])
+        self.sales_transactions.append({
+            'TransactionID': transaction_id,
+            'TransactionDate': transaction_date,
+            'TotalAmount': total_amount
+        })
         
         # Save transaction details and update item status
-        with open(self.transaction_details_file, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            for item in items_to_sell:
-                writer.writerow([transaction_id, item['ItemID'], item['Price']])
-                # Update item status to Sold
-                self.update_clothing_item(item['ItemID'], Status='Sold')
+        for item in items_to_sell:
+            self.transaction_details.append({
+                'TransactionID': transaction_id,
+                'ItemID': item['ItemID'],
+                'SellingPrice': item['Price']
+            })
+            # Update item status to Sold
+            self.update_clothing_item(item['ItemID'], Status='Sold')
+        
+        self.next_transaction_id += 1
         
         print(f"Transaction #{transaction_id} created successfully!")
         print(f"Date: {transaction_date}")
@@ -304,39 +223,20 @@ class ThriftShopSystem:
     
     def get_all_transactions(self):
         """Retrieve all sales transactions."""
-        transactions = []
-        try:
-            with open(self.sales_transactions_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    transactions.append({
-                        'TransactionID': int(row['TransactionID']),
-                        'TransactionDate': row['TransactionDate'],
-                        'TotalAmount': float(row['TotalAmount'])
-                    })
-        except Exception as e:
-            print(f"Error reading transactions: {e}")
-        
-        return transactions
+        return [trans.copy() for trans in self.sales_transactions]
     
     def get_transaction_details(self, transaction_id):
         """Get details of a specific transaction."""
         details = []
-        try:
-            with open(self.transaction_details_file, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    if int(row['TransactionID']) == transaction_id:
-                        item = self.get_clothing_item_by_id(int(row['ItemID']))
-                        details.append({
-                            'TransactionID': int(row['TransactionID']),
-                            'ItemID': int(row['ItemID']),
-                            'ItemName': item['ItemName'] if item else 'Unknown',
-                            'SellingPrice': float(row['SellingPrice'])
-                        })
-        except Exception as e:
-            print(f"Error reading transaction details: {e}")
-        
+        for detail in self.transaction_details:
+            if detail['TransactionID'] == transaction_id:
+                item = self.get_clothing_item_by_id(detail['ItemID'])
+                details.append({
+                    'TransactionID': detail['TransactionID'],
+                    'ItemID': detail['ItemID'],
+                    'ItemName': item['ItemName'] if item else 'Unknown',
+                    'SellingPrice': detail['SellingPrice']
+                })
         return details
     
     # ============= REPORT GENERATION =============
@@ -346,12 +246,11 @@ class ThriftShopSystem:
         if date is None:
             date = datetime.now().strftime("%Y-%m-%d")
         
-        transactions = self.get_all_transactions()
         daily_transactions = []
         total_sales = 0
         items_sold = 0
         
-        for trans in transactions:
+        for trans in self.sales_transactions:
             if trans['TransactionDate'].startswith(date):
                 daily_transactions.append(trans)
                 total_sales += trans['TotalAmount']
@@ -376,20 +275,17 @@ class ThriftShopSystem:
     
     def generate_inventory_report(self):
         """Generate inventory summary report."""
-        items = self.get_all_clothing_items()
-        categories = self.get_all_categories()
-        
         # Count by status
-        available_items = [item for item in items if item['Status'] == 'Available']
-        sold_items = [item for item in items if item['Status'] == 'Sold']
+        available_items = [item for item in self.clothing_items if item['Status'] == 'Available']
+        sold_items = [item for item in self.clothing_items if item['Status'] == 'Sold']
         
         # Count by category
         category_counts = {}
         category_values = {}
         
-        for category in categories:
+        for category in self.categories:
             cat_id = category['CategoryID']
-            cat_items = [item for item in items if item['CategoryID'] == cat_id]
+            cat_items = [item for item in self.clothing_items if item['CategoryID'] == cat_id]
             category_counts[category['CategoryName']] = len(cat_items)
             
             # Calculate total value of available items
@@ -399,7 +295,7 @@ class ThriftShopSystem:
         print("\n" + "="*50)
         print("INVENTORY SUMMARY REPORT")
         print("="*50)
-        print(f"Total Items in Inventory: {len(items)}")
+        print(f"Total Items in Inventory: {len(self.clothing_items)}")
         print(f"Available Items: {len(available_items)}")
         print(f"Sold Items: {len(sold_items)}")
         print(f"Total Inventory Value (Available): ${sum(item['Price'] for item in available_items):.2f}")
@@ -410,8 +306,7 @@ class ThriftShopSystem:
     
     def generate_sold_items_report(self):
         """Generate report of all sold items."""
-        items = self.get_all_clothing_items()
-        sold_items = [item for item in items if item['Status'] == 'Sold']
+        sold_items = [item for item in self.clothing_items if item['Status'] == 'Sold']
         
         print("\n" + "="*50)
         print("SOLD ITEMS REPORT")
@@ -436,8 +331,7 @@ class ThriftShopSystem:
     
     def generate_available_items_report(self):
         """Generate report of all available items."""
-        items = self.get_all_clothing_items()
-        available_items = [item for item in items if item['Status'] == 'Available']
+        available_items = [item for item in self.clothing_items if item['Status'] == 'Available']
         
         print("\n" + "="*50)
         print("AVAILABLE ITEMS REPORT")
@@ -448,8 +342,7 @@ class ThriftShopSystem:
             return
         
         # Group by category
-        categories = self.get_all_categories()
-        for category in categories:
+        for category in self.categories:
             cat_items = [item for item in available_items if item['CategoryID'] == category['CategoryID']]
             if cat_items:
                 print(f"\n{category['CategoryName']}:")
@@ -463,15 +356,12 @@ class ThriftShopSystem:
     
     def generate_category_summary(self):
         """Generate inventory summary per category."""
-        items = self.get_all_clothing_items()
-        categories = self.get_all_categories()
-        
         print("\n" + "="*50)
         print("CATEGORY SUMMARY REPORT")
         print("="*50)
         
-        for category in categories:
-            cat_items = [item for item in items if item['CategoryID'] == category['CategoryID']]
+        for category in self.categories:
+            cat_items = [item for item in self.clothing_items if item['CategoryID'] == category['CategoryID']]
             available_cat_items = [item for item in cat_items if item['Status'] == 'Available']
             sold_cat_items = [item for item in cat_items if item['Status'] == 'Sold']
             
